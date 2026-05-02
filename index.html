@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dig a Hole — Where Would You Come Up?</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="globe"></canvas>
+
+  <div id="hud-top">
+    <h1>DIG A HOLE</h1>
+    <p class="sub">Where would you come up on the other side?</p>
+  </div>
+
+  <div id="hud-instructions">
+    <span class="dot"></span> Drag to rotate &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; <b>click the globe</b> to spear it
+  </div>
+
+  <div id="hud-panel" class="hidden">
+    <div class="panel-row">
+      <div class="label">ENTRY</div>
+      <div class="coords" id="entry-coords">—</div>
+      <div class="place" id="entry-place">…</div>
+    </div>
+    <div class="arrow">↳ through the core ↴</div>
+    <div class="panel-row exit">
+      <div class="label">EXIT</div>
+      <div class="coords" id="exit-coords">—</div>
+      <div class="place" id="exit-place">…</div>
+    </div>
+    <div class="actions">
+      <button id="spin-to-exit">Spin to exit</button>
+      <button id="copy-coords">Copy coords</button>
+      <button id="clear">Clear</button>
+    </div>
+  </div>
+
+  <div id="cursor-readout"></div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

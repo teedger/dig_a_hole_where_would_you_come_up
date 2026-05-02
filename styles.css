@@ -1,0 +1,203 @@
+:root {
+  --cyan: #6cf6ff;
+  --cyan-dim: #2aa6b3;
+  --magenta: #ff58d8;
+  --bg: #03060d;
+  --panel: rgba(8, 18, 30, 0.72);
+  --border: rgba(108, 246, 255, 0.35);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: radial-gradient(ellipse at center, #061226 0%, #02040a 70%, #000 100%);
+  color: var(--cyan);
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#globe {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  cursor: grab;
+}
+#globe:active { cursor: grabbing; }
+
+#hud-top {
+  position: fixed;
+  top: 24px;
+  left: 32px;
+  pointer-events: none;
+  text-shadow: 0 0 12px rgba(108, 246, 255, 0.6);
+}
+
+#hud-top h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.35em;
+  font-weight: 600;
+  color: #d6fbff;
+}
+
+#hud-top .sub {
+  margin: 4px 0 0 2px;
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  color: var(--cyan-dim);
+  text-transform: uppercase;
+}
+
+#hud-instructions {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--cyan-dim);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  text-transform: uppercase;
+}
+
+#hud-instructions .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--cyan);
+  margin-right: 8px;
+  vertical-align: middle;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+#hud-panel {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 0 40px rgba(108, 246, 255, 0.15);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#hud-panel.hidden {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+}
+
+.panel-row {
+  margin-bottom: 12px;
+}
+
+.panel-row .label {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--cyan-dim);
+}
+
+.panel-row.exit .label {
+  color: var(--magenta);
+  text-shadow: 0 0 8px rgba(255, 88, 216, 0.6);
+}
+
+.panel-row .coords {
+  font-size: 16px;
+  color: #d6fbff;
+  margin-top: 2px;
+  text-shadow: 0 0 10px rgba(108, 246, 255, 0.5);
+}
+
+.panel-row.exit .coords {
+  color: #ffd6f2;
+  text-shadow: 0 0 10px rgba(255, 88, 216, 0.5);
+}
+
+.panel-row .place {
+  font-size: 12px;
+  color: var(--cyan-dim);
+  margin-top: 2px;
+  letter-spacing: 0.05em;
+}
+
+.arrow {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: var(--cyan-dim);
+  margin: 4px 0 12px;
+  opacity: 0.7;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.actions button {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--cyan);
+  padding: 8px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.actions button:hover {
+  background: rgba(108, 246, 255, 0.12);
+  box-shadow: 0 0 12px rgba(108, 246, 255, 0.4);
+}
+
+#cursor-readout {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(8, 18, 30, 0.85);
+  border: 1px solid var(--border);
+  color: var(--cyan);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  transform: translate(12px, 12px);
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+#cursor-readout.visible { opacity: 1; }
+
+@media (max-width: 600px) {
+  #hud-panel { right: 12px; left: 12px; width: auto; top: auto; bottom: 80px; }
+  #hud-top h1 { font-size: 20px; }
+  #hud-top .sub { font-size: 10px; }
+}

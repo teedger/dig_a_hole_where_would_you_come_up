@@ -1,0 +1,335 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const TEX_OFFSET = -Math.PI / 2;
+
+const canvas = document.getElementById('globe');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
+camera.position.set(0, 0.8, 3.2);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.5;
+controls.minDistance = 1.25;
+controls.maxDistance = 8;
+controls.enablePan = false;
+
+scene.add(new THREE.AmbientLight(0x4466aa, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(5, 3, 5);
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0x6cf6ff, 0.4);
+rim.position.set(-4, -2, -3);
+scene.add(rim);
+
+const stars = (() => {
+  const g = new THREE.BufferGeometry();
+  const n = 2500;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 80 + Math.random() * 40;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    pos[i * 3 + 2] = r * Math.cos(phi);
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: 0xaaddff, size: 0.25, sizeAttenuation: true, transparent: true, opacity: 0.8 });
+  return new THREE.Points(g, m);
+})();
+scene.add(stars);
+
+const earthGroup = new THREE.Group();
+scene.add(earthGroup);
+
+const loader = new THREE.TextureLoader();
+loader.crossOrigin = 'anonymous';
+const earthMap = loader.load('https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg');
+const bumpMap = loader.load('https://unpkg.com/three-globe@2.31.1/example/img/earth-topology.png');
+
+const earthGeom = new THREE.SphereGeometry(1, 96, 96);
+const earthMat = new THREE.MeshPhongMaterial({
+  map: earthMap,
+  bumpMap: bumpMap,
+  bumpScale: 0.02,
+  specular: new THREE.Color(0x6cf6ff),
+  shininess: 18,
+  emissive: new THREE.Color(0x041826),
+  emissiveIntensity: 0.6,
+});
+const earth = new THREE.Mesh(earthGeom, earthMat);
+earthGroup.add(earth);
+
+const wire = new THREE.Mesh(
+  new THREE.SphereGeometry(1.002, 48, 24),
+  new THREE.MeshBasicMaterial({ color: 0x6cf6ff, wireframe: true, transparent: true, opacity: 0.08 })
+);
+earthGroup.add(wire);
+
+const atmosphereMat = new THREE.ShaderMaterial({
+  uniforms: { c: { value: 0.6 }, p: { value: 3.5 }, glowColor: { value: new THREE.Color(0x6cf6ff) } },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vPositionNormal;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vPositionNormal = normalize((modelViewMatrix * vec4(position, 1.0)).xyz);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 glowColor;
+    uniform float c;
+    uniform float p;
+    varying vec3 vNormal;
+    varying vec3 vPositionNormal;
+    void main() {
+      float intensity = pow(c - dot(vNormal, vPositionNormal), p);
+      gl_FragColor = vec4(glowColor, 1.0) * intensity;
+    }
+  `,
+  side: THREE.BackSide,
+  blending: THREE.AdditiveBlending,
+  transparent: true,
+  depthWrite: false,
+});
+const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.18, 64, 64), atmosphereMat);
+scene.add(atmosphere);
+
+let spear = null;
+let entryMarker = null;
+let exitMarker = null;
+
+function makeMarker(color) {
+  const grp = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.018, 16, 16),
+    new THREE.MeshBasicMaterial({ color })
+  );
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.04, 16, 16),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  grp.add(core, halo);
+  return grp;
+}
+
+function clearSpear() {
+  for (const o of [spear, entryMarker, exitMarker]) {
+    if (o) {
+      earthGroup.remove(o);
+      o.traverse?.((c) => { c.geometry?.dispose?.(); c.material?.dispose?.(); });
+    }
+  }
+  spear = entryMarker = exitMarker = null;
+}
+
+function drawSpear(entryVec, exitVec) {
+  clearSpear();
+  const tubeLen = entryVec.distanceTo(exitVec);
+  const tubeGeom = new THREE.CylinderGeometry(0.006, 0.006, tubeLen, 16, 1, true);
+  const tubeMat = new THREE.MeshBasicMaterial({ color: 0xff58d8, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  spear = new THREE.Mesh(tubeGeom, tubeMat);
+  const mid = entryVec.clone().add(exitVec).multiplyScalar(0.5);
+  spear.position.copy(mid);
+  spear.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), exitVec.clone().sub(entryVec).normalize());
+  earthGroup.add(spear);
+
+  entryMarker = makeMarker(0x6cf6ff);
+  entryMarker.position.copy(entryVec.clone().multiplyScalar(1.02));
+  earthGroup.add(entryMarker);
+
+  exitMarker = makeMarker(0xff58d8);
+  exitMarker.position.copy(exitVec.clone().multiplyScalar(1.02));
+  earthGroup.add(exitMarker);
+}
+
+function vecToLatLon(v) {
+  const n = v.clone().normalize();
+  const lat = Math.asin(THREE.MathUtils.clamp(n.y, -1, 1)) * 180 / Math.PI;
+  let lon = (Math.atan2(n.z, n.x) - TEX_OFFSET) * 180 / Math.PI;
+  lon = -lon;
+  while (lon < -180) lon += 360;
+  while (lon > 180) lon -= 360;
+  return { lat, lon };
+}
+
+function latLonToVec(lat, lon, r = 1) {
+  const phi = lat * Math.PI / 180;
+  const theta = (-lon) * Math.PI / 180 + TEX_OFFSET;
+  return new THREE.Vector3(
+    r * Math.cos(phi) * Math.cos(theta),
+    r * Math.sin(phi),
+    r * Math.cos(phi) * Math.sin(theta),
+  );
+}
+
+function antipode({ lat, lon }) {
+  const aLon = lon + 180;
+  return { lat: -lat, lon: aLon > 180 ? aLon - 360 : aLon };
+}
+
+function fmtCoord(lat, lon) {
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lon >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(2)}° ${ns}, ${Math.abs(lon).toFixed(2)}° ${ew}`;
+}
+
+const placeCache = new Map();
+async function reverseGeocode(lat, lon) {
+  const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+  if (placeCache.has(key)) return placeCache.get(key);
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('http ' + r.status);
+    const j = await r.json();
+    const country = j.countryName || '';
+    const city = j.city || j.locality || j.principalSubdivision || '';
+    const label = country ? (city ? `${city}, ${country}` : country) : 'Open Ocean';
+    placeCache.set(key, label);
+    return label;
+  } catch {
+    return 'Open Ocean';
+  }
+}
+
+const panel = document.getElementById('hud-panel');
+const entryCoordsEl = document.getElementById('entry-coords');
+const entryPlaceEl = document.getElementById('entry-place');
+const exitCoordsEl = document.getElementById('exit-coords');
+const exitPlaceEl = document.getElementById('exit-place');
+const cursorReadout = document.getElementById('cursor-readout');
+
+let lastResult = null;
+
+async function selectPoint(latLon) {
+  const exit = antipode(latLon);
+  lastResult = { entry: latLon, exit };
+
+  const entryVec = latLonToVec(latLon.lat, latLon.lon, 1);
+  const exitVec = latLonToVec(exit.lat, exit.lon, 1);
+  drawSpear(entryVec, exitVec);
+
+  panel.classList.remove('hidden');
+  entryCoordsEl.textContent = fmtCoord(latLon.lat, latLon.lon);
+  exitCoordsEl.textContent = fmtCoord(exit.lat, exit.lon);
+  entryPlaceEl.textContent = 'locating…';
+  exitPlaceEl.textContent = 'locating…';
+
+  const [entryPlace, exitPlace] = await Promise.all([
+    reverseGeocode(latLon.lat, latLon.lon),
+    reverseGeocode(exit.lat, exit.lon),
+  ]);
+  entryPlaceEl.textContent = entryPlace;
+  exitPlaceEl.textContent = exitPlace;
+}
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let pointerDown = null;
+let pointerMoved = false;
+
+canvas.addEventListener('pointerdown', (e) => {
+  pointerDown = { x: e.clientX, y: e.clientY };
+  pointerMoved = false;
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (pointerDown) {
+    const dx = e.clientX - pointerDown.x;
+    const dy = e.clientY - pointerDown.y;
+    if (dx * dx + dy * dy > 16) pointerMoved = true;
+  }
+
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(earth);
+  if (hits.length) {
+    const local = earth.worldToLocal(hits[0].point.clone());
+    const ll = vecToLatLon(local);
+    cursorReadout.textContent = fmtCoord(ll.lat, ll.lon);
+    cursorReadout.style.left = e.clientX + 'px';
+    cursorReadout.style.top = e.clientY + 'px';
+    cursorReadout.classList.add('visible');
+  } else {
+    cursorReadout.classList.remove('visible');
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  const wasClick = pointerDown && !pointerMoved;
+  pointerDown = null;
+  if (!wasClick) return;
+
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(earth);
+  if (!hits.length) return;
+  const local = earth.worldToLocal(hits[0].point.clone());
+  selectPoint(vecToLatLon(local));
+});
+
+canvas.addEventListener('pointerleave', () => cursorReadout.classList.remove('visible'));
+
+document.getElementById('clear').addEventListener('click', () => {
+  clearSpear();
+  panel.classList.add('hidden');
+  lastResult = null;
+});
+
+document.getElementById('copy-coords').addEventListener('click', () => {
+  if (!lastResult) return;
+  const { entry, exit } = lastResult;
+  const text = `Entry: ${fmtCoord(entry.lat, entry.lon)}\nExit:  ${fmtCoord(exit.lat, exit.lon)}`;
+  navigator.clipboard?.writeText(text);
+  const btn = document.getElementById('copy-coords');
+  const orig = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => (btn.textContent = orig), 1200);
+});
+
+document.getElementById('spin-to-exit').addEventListener('click', () => {
+  if (!lastResult) return;
+  const target = latLonToVec(lastResult.exit.lat, lastResult.exit.lon, 1);
+  const worldTarget = target.clone().applyMatrix4(earthGroup.matrixWorld).normalize();
+  const dist = camera.position.length();
+  const desired = worldTarget.multiplyScalar(dist);
+  const start = camera.position.clone();
+  const startTime = performance.now();
+  const dur = 900;
+  function tween() {
+    const t = Math.min(1, (performance.now() - startTime) / dur);
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    camera.position.lerpVectors(start, desired, e);
+    camera.lookAt(0, 0, 0);
+    if (t < 1) requestAnimationFrame(tween);
+  }
+  tween();
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  if (!pointerDown) earthGroup.rotation.y += dt * 0.03;
+  stars.rotation.y += dt * 0.005;
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
