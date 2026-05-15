@@ -328,6 +328,7 @@ const audio = (() => {
   let player = null;
   let ready = false;
   let muted = true;
+  let sfxMuted = false;
   let pendingStart = false;
 
   // YT IFrame API
@@ -391,7 +392,7 @@ const audio = (() => {
   }
 
   function ping(freq = 880) {
-    if (muted) return;
+    if (sfxMuted) return;
     const c = chimeCtx();
     const o = c.createOscillator();
     const g = c.createGain();
@@ -406,7 +407,18 @@ const audio = (() => {
     o.stop(now + 1);
   }
 
-  return { start, stop, toggle, ping, isMuted: () => muted, isStarted: () => !muted };
+  function toggleSfx() {
+    sfxMuted = !sfxMuted;
+    return !sfxMuted;
+  }
+
+  return {
+    start, stop, toggle, ping,
+    isMuted: () => muted,
+    isStarted: () => !muted,
+    toggleSfx,
+    isSfxMuted: () => sfxMuted,
+  };
 })();
 
 const audioBtn = document.getElementById('audio-toggle');
@@ -415,6 +427,14 @@ audioBtn.addEventListener('click', async () => {
   await audio.toggle();
   audioBtn.classList.toggle('muted', audio.isMuted() || !audio.isStarted());
   audioBtn.classList.toggle('playing', !audio.isMuted() && audio.isStarted());
+});
+
+const sfxBtn = document.getElementById('sfx-toggle');
+sfxBtn.classList.add('playing');
+sfxBtn.addEventListener('click', () => {
+  audio.toggleSfx();
+  sfxBtn.classList.toggle('muted', audio.isSfxMuted());
+  sfxBtn.classList.toggle('playing', !audio.isSfxMuted());
 });
 
 // Auto-start on first globe interaction (browsers require user gesture)
