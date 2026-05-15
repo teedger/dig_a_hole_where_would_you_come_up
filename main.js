@@ -217,6 +217,8 @@ async function selectPoint(latLon) {
   const entryVec = latLonToVec(latLon.lat, latLon.lon, 1);
   const exitVec = latLonToVec(exit.lat, exit.lon, 1);
   drawSpear(entryVec, exitVec);
+  audio.ping(660);
+  setTimeout(() => audio.ping(990), 180);
 
   panel.classList.remove('hidden');
   entryCoordsEl.textContent = fmtCoord(latLon.lat, latLon.lon);
@@ -316,6 +318,136 @@ document.getElementById('spin-to-exit').addEventListener('click', () => {
   }
   tween();
 });
+
+const audio = (() => {
+  let ctx = null;
+  let master = null;
+  let nodes = [];
+  let started = false;
+  let muted = false;
+
+  function build() {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain();
+    master.gain.value = 0;
+    master.connect(ctx.destination);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    filter.Q.value = 4;
+    filter.connect(master);
+
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.07;
+    lfoGain.gain.value = 220;
+    lfo.connect(lfoGain).connect(filter.frequency);
+    lfo.start();
+    nodes.push(lfo);
+
+    const base = 55; // A1
+    const ratios = [1, 1.5, 2.005, 3.01]; // root, 5th, octave, octave+5th (slight detune)
+    ratios.forEach((r, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = i === 0 ? 'sawtooth' : 'sine';
+      osc.frequency.value = base * r;
+      const g = ctx.createGain();
+      g.gain.value = i === 0 ? 0.12 : 0.07;
+
+      const trem = ctx.createOscillator();
+      const tg = ctx.createGain();
+      trem.frequency.value = 0.05 + i * 0.03;
+      tg.gain.value = 0.04;
+      trem.connect(tg).connect(g.gain);
+      trem.start();
+
+      osc.connect(g).connect(filter);
+      osc.start();
+      nodes.push(osc, trem);
+    });
+
+    // Soft noise wash for "atmosphere"
+    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    noise.loop = true;
+    const nFilter = ctx.createBiquadFilter();
+    nFilter.type = 'bandpass';
+    nFilter.frequency.value = 900;
+    nFilter.Q.value = 0.6;
+    const nGain = ctx.createGain();
+    nGain.gain.value = 0.04;
+    noise.connect(nFilter).connect(nGain).connect(master);
+    noise.start();
+    nodes.push(noise);
+  }
+
+  function fade(to, secs) {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(to, now + secs);
+  }
+
+  async function start() {
+    if (!started) {
+      build();
+      started = true;
+    }
+    if (ctx.state === 'suspended') await ctx.resume();
+    muted = false;
+    fade(0.18, 2.5);
+  }
+
+  function stop() {
+    muted = true;
+    if (ctx) fade(0, 0.6);
+  }
+
+  function toggle() {
+    if (muted || !started) return start();
+    return stop();
+  }
+
+  function ping(freq = 880) {
+    if (!started || muted || !ctx) return;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.frequency.value = freq;
+    o.type = 'sine';
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.18, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+    o.connect(g).connect(master);
+    o.start(now);
+    o.stop(now + 1);
+  }
+
+  return { start, stop, toggle, ping, isMuted: () => muted, isStarted: () => started };
+})();
+
+const audioBtn = document.getElementById('audio-toggle');
+audioBtn.classList.add('muted');
+audioBtn.addEventListener('click', async () => {
+  await audio.toggle();
+  audioBtn.classList.toggle('muted', audio.isMuted() || !audio.isStarted());
+  audioBtn.classList.toggle('playing', !audio.isMuted() && audio.isStarted());
+});
+
+// Auto-start on first globe interaction (browsers require user gesture)
+const autoStart = async () => {
+  if (!audio.isStarted()) {
+    await audio.start();
+    audioBtn.classList.remove('muted');
+    audioBtn.classList.add('playing');
+  }
+};
+canvas.addEventListener('pointerdown', autoStart, { once: true });
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
