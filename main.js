@@ -319,116 +319,94 @@ document.getElementById('spin-to-exit').addEventListener('click', () => {
   tween();
 });
 
+// Galactic ambience — swap this YouTube video ID to change the soundtrack.
+// Must be an embeddable video (uploader hasn't disabled embeds).
+const YT_VIDEO_ID = 'tNkZsRW7h2c';
+const YT_VOLUME = 35; // 0–100
+
 const audio = (() => {
-  let ctx = null;
-  let master = null;
-  let nodes = [];
-  let started = false;
-  let muted = false;
+  let player = null;
+  let ready = false;
+  let muted = true;
+  let pendingStart = false;
 
-  function build() {
-    ctx = new (window.AudioContext || window.webkitAudioContext)();
-    master = ctx.createGain();
-    master.gain.value = 0;
-    master.connect(ctx.destination);
+  // YT IFrame API
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
 
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 700;
-    filter.Q.value = 4;
-    filter.connect(master);
+  const container = document.createElement('div');
+  container.id = 'yt-host';
+  container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;pointer-events:none;opacity:0;';
+  container.innerHTML = '<div id="yt-player"></div>';
+  document.body.appendChild(container);
 
-    const lfo = ctx.createOscillator();
-    const lfoGain = ctx.createGain();
-    lfo.frequency.value = 0.07;
-    lfoGain.gain.value = 220;
-    lfo.connect(lfoGain).connect(filter.frequency);
-    lfo.start();
-    nodes.push(lfo);
-
-    const base = 55; // A1
-    const ratios = [1, 1.5, 2.005, 3.01]; // root, 5th, octave, octave+5th (slight detune)
-    ratios.forEach((r, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = i === 0 ? 'sawtooth' : 'sine';
-      osc.frequency.value = base * r;
-      const g = ctx.createGain();
-      g.gain.value = i === 0 ? 0.12 : 0.07;
-
-      const trem = ctx.createOscillator();
-      const tg = ctx.createGain();
-      trem.frequency.value = 0.05 + i * 0.03;
-      tg.gain.value = 0.04;
-      trem.connect(tg).connect(g.gain);
-      trem.start();
-
-      osc.connect(g).connect(filter);
-      osc.start();
-      nodes.push(osc, trem);
+  window.onYouTubeIframeAPIReady = () => {
+    player = new YT.Player('yt-player', {
+      height: '1',
+      width: '1',
+      videoId: YT_VIDEO_ID,
+      playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, modestbranding: 1, playsinline: 1, rel: 0 },
+      events: {
+        onReady: () => {
+          ready = true;
+          player.setVolume(YT_VOLUME);
+          if (pendingStart) {
+            pendingStart = false;
+            start();
+          }
+        },
+        onStateChange: (e) => {
+          // Loop when video ends
+          if (e.data === YT.PlayerState.ENDED) player.playVideo();
+        },
+      },
     });
+  };
 
-    // Soft noise wash for "atmosphere"
-    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuf;
-    noise.loop = true;
-    const nFilter = ctx.createBiquadFilter();
-    nFilter.type = 'bandpass';
-    nFilter.frequency.value = 900;
-    nFilter.Q.value = 0.6;
-    const nGain = ctx.createGain();
-    nGain.gain.value = 0.04;
-    noise.connect(nFilter).connect(nGain).connect(master);
-    noise.start();
-    nodes.push(noise);
-  }
-
-  function fade(to, secs) {
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    master.gain.cancelScheduledValues(now);
-    master.gain.setValueAtTime(master.gain.value, now);
-    master.gain.linearRampToValueAtTime(to, now + secs);
+  // Local AudioContext for the click chimes (so they layer over YouTube audio)
+  let ctx = null;
+  function chimeCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
   }
 
   async function start() {
-    if (!started) {
-      build();
-      started = true;
-    }
-    if (ctx.state === 'suspended') await ctx.resume();
+    if (!ready) { pendingStart = true; return; }
     muted = false;
-    fade(0.18, 2.5);
+    player.unMute?.();
+    player.setVolume(YT_VOLUME);
+    player.playVideo();
   }
 
   function stop() {
     muted = true;
-    if (ctx) fade(0, 0.6);
+    if (ready) player.pauseVideo();
   }
 
   function toggle() {
-    if (muted || !started) return start();
+    if (muted) return start();
     return stop();
   }
 
   function ping(freq = 880) {
-    if (!started || muted || !ctx) return;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
+    if (muted) return;
+    const c = chimeCtx();
+    const o = c.createOscillator();
+    const g = c.createGain();
     o.frequency.value = freq;
     o.type = 'sine';
-    const now = ctx.currentTime;
+    const now = c.currentTime;
     g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.18, now + 0.01);
+    g.gain.linearRampToValueAtTime(0.15, now + 0.01);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-    o.connect(g).connect(master);
+    o.connect(g).connect(c.destination);
     o.start(now);
     o.stop(now + 1);
   }
 
-  return { start, stop, toggle, ping, isMuted: () => muted, isStarted: () => started };
+  return { start, stop, toggle, ping, isMuted: () => muted, isStarted: () => !muted };
 })();
 
 const audioBtn = document.getElementById('audio-toggle');
