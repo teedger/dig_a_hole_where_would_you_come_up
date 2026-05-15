@@ -105,38 +105,26 @@ const atmosphereMat = new THREE.ShaderMaterial({
 const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.18, 64, 64), atmosphereMat);
 scene.add(atmosphere);
 
-// Reference markers — if these don't sit on their cities visually,
-// adjust LON_OFFSET_DEG until they do.
+// Reference labels at well-known cities.
 const REF_CITIES = [
-  { name: 'London',     lat:  51.51, lon:    -0.13, color: 0xff4d4d },
-  { name: 'New York',   lat:  40.71, lon:   -74.01, color: 0xffd24d },
-  { name: 'Tokyo',      lat:  35.68, lon:   139.69, color: 0x4dff8b },
-  { name: 'Sydney',     lat: -33.87, lon:   151.21, color: 0xff8bff },
-  { name: 'Ulaanbaatar',lat:  47.92, lon:   106.92, color: 0x6cf6ff },
+  { name: 'London',      lat:  51.51, lon:   -0.13 },
+  { name: 'New York',    lat:  40.71, lon:  -74.01 },
+  { name: 'Tokyo',       lat:  35.68, lon:  139.69 },
+  { name: 'Sydney',      lat: -33.87, lon:  151.21 },
+  { name: 'Ulaanbaatar', lat:  47.92, lon:  106.92 },
 ];
 
-function makeRefMarker(color) {
-  const grp = new THREE.Group();
-  const dot = new THREE.Mesh(
-    new THREE.SphereGeometry(0.012, 12, 12),
-    new THREE.MeshBasicMaterial({ color })
-  );
-  const halo = new THREE.Mesh(
-    new THREE.SphereGeometry(0.028, 12, 12),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false })
-  );
-  grp.add(dot, halo);
-  return grp;
-}
+const labelLayer = document.createElement('div');
+labelLayer.id = 'label-layer';
+document.body.appendChild(labelLayer);
 
-const refGroup = new THREE.Group();
-for (const c of REF_CITIES) {
-  const m = makeRefMarker(c.color);
-  m.position.copy(latLonToVec(c.lat, c.lon, 1.01));
-  m.userData = c;
-  refGroup.add(m);
-}
-earthGroup.add(refGroup);
+const refLabels = REF_CITIES.map((c) => {
+  const el = document.createElement('div');
+  el.className = 'city-label';
+  el.textContent = c.name;
+  labelLayer.appendChild(el);
+  return { city: c, el, pos: latLonToVec(c.lat, c.lon, 1.005) };
+});
 
 let spear = null;
 let entryMarker = null;
@@ -490,6 +478,26 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+const _v = new THREE.Vector3();
+const _camWorld = new THREE.Vector3();
+function updateLabels() {
+  camera.getWorldPosition(_camWorld);
+  for (const l of refLabels) {
+    _v.copy(l.pos).applyMatrix4(earthGroup.matrixWorld);
+    const toCam = _camWorld.clone().sub(_v).normalize();
+    const normal = _v.clone().normalize();
+    const facing = normal.dot(toCam) > 0.05;
+    if (!facing) { l.el.style.opacity = '0'; continue; }
+    const screen = _v.clone().project(camera);
+    if (screen.z > 1) { l.el.style.opacity = '0'; continue; }
+    const x = (screen.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-screen.y * 0.5 + 0.5) * window.innerHeight;
+    l.el.style.transform = `translate(${x}px, ${y}px)`;
+    const fade = THREE.MathUtils.smoothstep(normal.dot(toCam), 0.05, 0.35);
+    l.el.style.opacity = String(fade);
+  }
+}
+
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
@@ -498,5 +506,6 @@ function animate() {
   stars.rotation.y += dt * 0.005;
   controls.update();
   renderer.render(scene, camera);
+  updateLabels();
 }
 animate();

@@ -196,6 +196,42 @@ html, body {
 
 #cursor-readout.visible { opacity: 1; }
 
+#label-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.city-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #d6fbff;
+  text-shadow: 0 0 8px rgba(108, 246, 255, 0.85), 0 0 2px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  transform-origin: 0 0;
+  margin: -6px 0 0 8px;
+  transition: opacity 0.15s linear;
+  will-change: transform, opacity;
+}
+
+.city-label::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+  transform: translateY(-50%);
+}
+
 #audio-controls {
   position: fixed;
   bottom: 24px;
