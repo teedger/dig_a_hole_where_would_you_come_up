@@ -196,10 +196,15 @@ html, body {
 
 #cursor-readout.visible { opacity: 1; }
 
-#audio-toggle {
+#audio-controls {
   position: fixed;
   bottom: 24px;
   right: 24px;
+  display: flex;
+  gap: 8px;
+}
+
+#audio-controls button {
   width: 42px;
   height: 42px;
   border-radius: 50%;
@@ -214,12 +219,13 @@ html, body {
   align-items: center;
   justify-content: center;
   transition: box-shadow 0.2s, color 0.2s;
+  padding: 0;
 }
-#audio-toggle:hover { box-shadow: 0 0 16px rgba(108, 246, 255, 0.5); }
-#audio-toggle .ic-off { display: none; color: var(--cyan-dim); }
-#audio-toggle.muted .ic-on { display: none; }
-#audio-toggle.muted .ic-off { display: inline; }
-#audio-toggle.playing { color: #d6fbff; box-shadow: 0 0 18px rgba(108, 246, 255, 0.55); }
+#audio-controls button:hover { box-shadow: 0 0 16px rgba(108, 246, 255, 0.5); }
+#audio-controls button .ic-off { display: none; color: var(--cyan-dim); }
+#audio-controls button.muted .ic-on { display: none; }
+#audio-controls button.muted .ic-off { display: inline; }
+#audio-controls button.playing { color: #d6fbff; box-shadow: 0 0 18px rgba(108, 246, 255, 0.55); }
 
 #credit {
   position: fixed;
@@ -244,7 +250,7 @@ html, body {
 
 @media (max-width: 600px) {
   #credit { font-size: 10px; left: 12px; bottom: 16px; }
-  #audio-toggle { right: 12px; bottom: 16px; }
+  #audio-controls { right: 12px; bottom: 16px; }
 }
 
 @media (max-width: 600px) {
