@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const TEX_OFFSET = -Math.PI / 2;
-
 const canvas = document.getElementById('globe');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -151,11 +149,13 @@ function drawSpear(entryVec, exitVec) {
   earthGroup.add(exitMarker);
 }
 
+// Three.js SphereGeometry default UV mapping puts u=0.5 (texture center) on
+// the +x axis. The blue-marble equirectangular has the prime meridian at
+// u=0.5, so lon=0 → +x, lon=90°E → -z, lon=180° → -x.
 function vecToLatLon(v) {
   const n = v.clone().normalize();
   const lat = Math.asin(THREE.MathUtils.clamp(n.y, -1, 1)) * 180 / Math.PI;
-  let lon = (Math.atan2(n.z, n.x) - TEX_OFFSET) * 180 / Math.PI;
-  lon = -lon;
+  let lon = Math.atan2(-n.z, n.x) * 180 / Math.PI;
   while (lon < -180) lon += 360;
   while (lon > 180) lon -= 360;
   return { lat, lon };
@@ -163,11 +163,11 @@ function vecToLatLon(v) {
 
 function latLonToVec(lat, lon, r = 1) {
   const phi = lat * Math.PI / 180;
-  const theta = (-lon) * Math.PI / 180 + TEX_OFFSET;
+  const lambda = lon * Math.PI / 180;
   return new THREE.Vector3(
-    r * Math.cos(phi) * Math.cos(theta),
+    r * Math.cos(phi) * Math.cos(lambda),
     r * Math.sin(phi),
-    r * Math.cos(phi) * Math.sin(theta),
+    -r * Math.cos(phi) * Math.sin(lambda),
   );
 }
 
