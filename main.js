@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// Adjust this if reference markers don't sit on their cities.
+// Positive value shifts read-out coordinates eastward.
+const LON_OFFSET_DEG = 0;
+
 const canvas = document.getElementById('globe');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -101,6 +105,39 @@ const atmosphereMat = new THREE.ShaderMaterial({
 const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.18, 64, 64), atmosphereMat);
 scene.add(atmosphere);
 
+// Reference markers — if these don't sit on their cities visually,
+// adjust LON_OFFSET_DEG until they do.
+const REF_CITIES = [
+  { name: 'London',     lat:  51.51, lon:    -0.13, color: 0xff4d4d },
+  { name: 'New York',   lat:  40.71, lon:   -74.01, color: 0xffd24d },
+  { name: 'Tokyo',      lat:  35.68, lon:   139.69, color: 0x4dff8b },
+  { name: 'Sydney',     lat: -33.87, lon:   151.21, color: 0xff8bff },
+  { name: 'Ulaanbaatar',lat:  47.92, lon:   106.92, color: 0x6cf6ff },
+];
+
+function makeRefMarker(color) {
+  const grp = new THREE.Group();
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.012, 12, 12),
+    new THREE.MeshBasicMaterial({ color })
+  );
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.028, 12, 12),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  grp.add(dot, halo);
+  return grp;
+}
+
+const refGroup = new THREE.Group();
+for (const c of REF_CITIES) {
+  const m = makeRefMarker(c.color);
+  m.position.copy(latLonToVec(c.lat, c.lon, 1.01));
+  m.userData = c;
+  refGroup.add(m);
+}
+earthGroup.add(refGroup);
+
 let spear = null;
 let entryMarker = null;
 let exitMarker = null;
@@ -155,7 +192,7 @@ function drawSpear(entryVec, exitVec) {
 function vecToLatLon(v) {
   const n = v.clone().normalize();
   const lat = Math.asin(THREE.MathUtils.clamp(n.y, -1, 1)) * 180 / Math.PI;
-  let lon = Math.atan2(-n.z, n.x) * 180 / Math.PI;
+  let lon = Math.atan2(-n.z, n.x) * 180 / Math.PI + LON_OFFSET_DEG;
   while (lon < -180) lon += 360;
   while (lon > 180) lon -= 360;
   return { lat, lon };
@@ -163,7 +200,7 @@ function vecToLatLon(v) {
 
 function latLonToVec(lat, lon, r = 1) {
   const phi = lat * Math.PI / 180;
-  const lambda = lon * Math.PI / 180;
+  const lambda = (lon - LON_OFFSET_DEG) * Math.PI / 180;
   return new THREE.Vector3(
     r * Math.cos(phi) * Math.cos(lambda),
     r * Math.sin(phi),
