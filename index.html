@@ -47,6 +47,25 @@
 
   <div id="cursor-readout"></div>
 
+  <div id="scene-controls">
+    <button id="rotation-toggle" class="ctrl-btn" aria-label="Pause earth rotation" title="Pause earth rotation">
+      <span class="ic-on">❚❚</span><span class="ic-off">▶</span>
+    </button>
+    <div class="slider-block">
+      <span class="slider-label">SUN</span>
+      <div class="slider-row">
+        <label class="vslider" title="Sun longitude">
+          <input id="sun-lon" type="range" min="-180" max="180" step="1" value="45" orient="vertical" />
+          <span class="axis">LON</span>
+        </label>
+        <label class="vslider" title="Sun altitude">
+          <input id="sun-alt" type="range" min="-90" max="90" step="1" value="35" orient="vertical" />
+          <span class="axis">ALT</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
   <div id="audio-controls">
     <button id="sfx-toggle" aria-label="Toggle click sound" title="Toggle click sound">
       <span class="ic-on">◉</span><span class="ic-off">∅</span>

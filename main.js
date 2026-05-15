@@ -355,6 +355,30 @@ function resetSpinToggle() {
   spinBtn.textContent = 'Spin to exit';
 }
 
+let autoRotate = true;
+const rotationBtn = document.getElementById('rotation-toggle');
+rotationBtn.addEventListener('click', () => {
+  autoRotate = !autoRotate;
+  rotationBtn.classList.toggle('paused', !autoRotate);
+  rotationBtn.title = autoRotate ? 'Pause earth rotation' : 'Resume earth rotation';
+});
+
+const sunLonEl = document.getElementById('sun-lon');
+const sunAltEl = document.getElementById('sun-alt');
+const SUN_DIST = 8;
+function updateSun() {
+  const lon = parseFloat(sunLonEl.value) * Math.PI / 180;
+  const alt = parseFloat(sunAltEl.value) * Math.PI / 180;
+  sun.position.set(
+    SUN_DIST * Math.cos(alt) * Math.cos(lon),
+    SUN_DIST * Math.sin(alt),
+    -SUN_DIST * Math.cos(alt) * Math.sin(lon),
+  );
+}
+sunLonEl.addEventListener('input', updateSun);
+sunAltEl.addEventListener('input', updateSun);
+updateSun();
+
 // Galactic ambience — swap this YouTube video ID to change the soundtrack.
 // Must be an embeddable video (uploader hasn't disabled embeds).
 const YT_VIDEO_ID = 'tNkZsRW7h2c';
@@ -513,7 +537,7 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   const dt = clock.getDelta();
-  if (!pointerDown) earthGroup.rotation.y += dt * 0.03;
+  if (!pointerDown && autoRotate) earthGroup.rotation.y += dt * 0.03;
   stars.rotation.y += dt * 0.005;
   controls.update();
   renderer.render(scene, camera);
