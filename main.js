@@ -246,6 +246,7 @@ async function selectPoint(latLon) {
   setTimeout(() => audio.ping(990), 180);
 
   panel.classList.remove('hidden');
+  resetSpinToggle();
   entryCoordsEl.textContent = fmtCoord(latLon.lat, latLon.lon);
   exitCoordsEl.textContent = fmtCoord(exit.lat, exit.lon);
   entryPlaceEl.textContent = 'locating…';
@@ -325,10 +326,13 @@ document.getElementById('copy-coords').addEventListener('click', () => {
   setTimeout(() => (btn.textContent = orig), 1200);
 });
 
-document.getElementById('spin-to-exit').addEventListener('click', () => {
+const spinBtn = document.getElementById('spin-toggle');
+spinBtn.addEventListener('click', () => {
   if (!lastResult) return;
-  const target = latLonToVec(lastResult.exit.lat, lastResult.exit.lon, 1);
-  const worldTarget = target.clone().applyMatrix4(earthGroup.matrixWorld).normalize();
+  const target = spinBtn.dataset.target === 'exit' ? lastResult.exit : lastResult.entry;
+  const next = spinBtn.dataset.target === 'exit' ? 'entry' : 'exit';
+  const v = latLonToVec(target.lat, target.lon, 1);
+  const worldTarget = v.clone().applyMatrix4(earthGroup.matrixWorld).normalize();
   const dist = camera.position.length();
   const desired = worldTarget.multiplyScalar(dist);
   const start = camera.position.clone();
@@ -342,7 +346,14 @@ document.getElementById('spin-to-exit').addEventListener('click', () => {
     if (t < 1) requestAnimationFrame(tween);
   }
   tween();
+  spinBtn.dataset.target = next;
+  spinBtn.textContent = next === 'exit' ? 'Spin to exit' : 'Spin to entry';
 });
+
+function resetSpinToggle() {
+  spinBtn.dataset.target = 'exit';
+  spinBtn.textContent = 'Spin to exit';
+}
 
 // Galactic ambience — swap this YouTube video ID to change the soundtrack.
 // Must be an embeddable video (uploader hasn't disabled embeds).
